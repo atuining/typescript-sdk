@@ -1,14 +1,14 @@
-import { generateKeyPairSync, createSign, createVerify, createHash, KeyObject, sign, verify } from 'crypto';
+import { generateKeyPairSync, createHash, sign, verify } from "crypto";
 
 /**
  * Generates an Ed25519 key pair for signing and verification.
  * Returns { publicKey, privateKey } as PEM strings.
  */
 export function generateKeyPair(): { publicKey: string; privateKey: string } {
-  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+  const { publicKey, privateKey } = generateKeyPairSync("ed25519");
   return {
-    publicKey: publicKey.export({ type: 'spki', format: 'pem' }).toString(),
-    privateKey: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(),
+    publicKey: publicKey.export({ type: "spki", format: "pem" }).toString(),
+    privateKey: privateKey.export({ type: "pkcs8", format: "pem" }).toString(),
   };
 }
 
@@ -18,29 +18,41 @@ export function generateKeyPair(): { publicKey: string; privateKey: string } {
 export function hashPayload(payload: unknown): string {
   // Canonicalize JSON for consistent hashing
   const json = JSON.stringify(payload, Object.keys(payload as object).sort());
-  return createHash('sha256').update(json).digest('hex');
+  return createHash("sha256").update(json).digest("hex");
 }
 
 /**
  * Signs a payload (string or Buffer) with the given Ed25519 private key (PEM).
  * Returns the signature as a hex string.
  */
-export function signPayload(payload: string | Buffer, privateKeyPem: string): string {
+export function signPayload(
+  payload: string | Buffer,
+  privateKeyPem: string,
+): string {
   return sign(null, Buffer.isBuffer(payload) ? payload : Buffer.from(payload), {
     key: privateKeyPem,
     dsaEncoding: undefined,
-  }).toString('hex');
+  }).toString("hex");
 }
 
 /**
  * Verifies a signature for a payload with the given Ed25519 public key (PEM).
  * Returns true if valid, false otherwise.
  */
-export function verifySignature(payload: string | Buffer, signatureHex: string, publicKeyPem: string): boolean {
-  return verify(null, Buffer.isBuffer(payload) ? payload : Buffer.from(payload), {
-    key: publicKeyPem,
-    dsaEncoding: undefined,
-  }, Buffer.from(signatureHex, 'hex'));
+export function verifySignature(
+  payload: string | Buffer,
+  signatureHex: string,
+  publicKeyPem: string,
+): boolean {
+  return verify(
+    null,
+    Buffer.isBuffer(payload) ? payload : Buffer.from(payload),
+    {
+      key: publicKeyPem,
+      dsaEncoding: undefined,
+    },
+    Buffer.from(signatureHex, "hex"),
+  );
 }
 
 /**
@@ -59,7 +71,7 @@ export function verifyInteractionCoupon(
   },
   request: unknown,
   response: unknown,
-  publicKeyPem: string
+  publicKeyPem: string,
 ): boolean {
   // Recompute hashes
   const expectedRequestHash = hashPayload(request);
@@ -74,4 +86,4 @@ export function verifyInteractionCoupon(
   const { signature, ...payload } = coupon;
   const payloadStr = JSON.stringify(payload);
   return verifySignature(payloadStr, signature, publicKeyPem);
-} 
+}

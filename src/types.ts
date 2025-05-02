@@ -54,12 +54,31 @@ export const NotificationSchema = z.object({
   params: z.optional(BaseNotificationParamsSchema),
 });
 
+// --- Interaction Coupon Schema ---
+export const InteractionCouponSchema = z.object({
+  interaction_id: z.string(),
+  caller_id: z.string(),
+  host_id: z.string(),
+  timestamp: z.number(),
+  request_hash: z.string(),
+  response_hash: z.string(),
+  signature: z.string(), // base64 or hex
+});
+
+export type InteractionCoupon = z.infer<typeof InteractionCouponSchema>;
+
+// Patch the ResultSchema to allow an optional interaction_coupon in _meta
+const MetaWithCouponSchema = z.object({
+  interaction_coupon: InteractionCouponSchema.optional(),
+}).passthrough();
+
+// Replace the original ResultSchema definition
 export const ResultSchema = z
   .object({
     /**
      * This result property is reserved by the protocol to allow clients and servers to attach additional metadata to their responses.
      */
-    _meta: z.optional(z.object({}).passthrough()),
+    _meta: z.optional(MetaWithCouponSchema),
   })
   .passthrough();
 

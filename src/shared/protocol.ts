@@ -22,9 +22,11 @@ import {
   Result,
   ServerCapabilities,
   RequestMeta,
+  InteractionCouponSchema,
 } from "../types.js";
 import { Transport, TransportSendOptions } from "./transport.js";
 import { AuthInfo } from "../server/auth/types.js";
+import { hashPayload, signPayload } from "./crypto.js";
 
 /**
  * Callback for progress notifications.
@@ -43,6 +45,10 @@ export type ProtocolOptions = {
    * Currently this defaults to false, for backwards compatibility with SDK versions that did not advertise capabilities correctly. In future, this will default to true.
    */
   enforceStrictCapabilities?: boolean;
+  /**
+   * If set, enables cryptographic interaction coupons on all responses using this Ed25519 private key (PEM).
+   */
+  interactionCouponPrivateKey?: string;
 };
 
 /**
@@ -377,7 +383,6 @@ export abstract class Protocol<
       requestId: request.id,
     };
 
-    // Starting with Promise.resolve() puts any synchronous errors into the monad as well.
     Promise.resolve()
       .then(() => handler(request, fullExtra))
       .then(
@@ -385,6 +390,35 @@ export abstract class Protocol<
           if (abortController.signal.aborted) {
             return;
           }
+
+          // --- Coupon integration ---
+          const privateKey = this._options?.interactionCouponPrivateKey;
+          if (privateKey) {
+            try {
+              const interaction_id = String(request.id);
+              const caller_id = typeof request.params?.caller_id === 'string' ? request.params.caller_id : 'unknown_caller';
+              const host_id = (this as any)._serverInfo?.name || "unknown_host";
+              const timestamp = Math.floor(Date.now() / 1000);
+              const request_hash = hashPayload(request);
+              const response_hash = hashPayload(result);
+              const couponPayload = {
+                interaction_id,
+                caller_id,
+                host_id,
+                timestamp,
+                request_hash,
+                response_hash,
+              };
+              const signature = signPayload(JSON.stringify(couponPayload), privateKey);
+              const coupon = { ...couponPayload, signature };
+              // Attach to _meta.interaction_coupon
+              if (!result._meta) result._meta = {};
+              result._meta.interaction_coupon = coupon;
+            } catch (e) {
+              this._onerror(new Error(`Failed to generate interaction coupon: ${e}`));
+            }
+          }
+          // --- End coupon integration ---
 
           return this._transport?.send({
             result,
